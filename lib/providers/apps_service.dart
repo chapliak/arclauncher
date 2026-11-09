@@ -86,32 +86,22 @@ class AppsService extends ChangeNotifier
     return application?.isAvailable == true ? application : null;
   }
 
-  List<LauncherSection> get launcherSections => List.unmodifiable(_launcherSections.map((section) {
-        if (section is! Category) return section;
-        return Category.withApplications(
-          name: section.name,
-          id: section.id,
-          order: section.order,
-          columnsCount: section.columnsCount,
-          rowHeight: section.rowHeight,
-          sort: section.sort,
-          type: section.type,
-          applications: UnmodifiableListView(section.applications.where((application) => application.isAvailable).toList()),
-        );
-      }));
-  List<Category> get categories => _categoriesById.values
-      .map((category) => Category.withApplications(
-            name: category.name,
-            id: category.id,
-            order: category.order,
-            columnsCount: category.columnsCount,
-            rowHeight: category.rowHeight,
-            sort: category.sort,
-            type: category.type,
-            applications: UnmodifiableListView(category.applications.where((application) => application.isAvailable).toList()),
-          ))
-      .toList(growable: false);
+  List<LauncherSection> get launcherSections => List.unmodifiable(
+      _launcherSections.map((section) => section is Category ? _withoutUnavailableApps(section) : section));
+  List<Category> get categories =>
+      _categoriesById.values.map(_withoutUnavailableApps).toList(growable: false);
   List<Category> get categoriesWithApps => categories;
+
+  Category _withoutUnavailableApps(Category category) => Category.withApplications(
+        name: category.name,
+        id: category.id,
+        order: category.order,
+        columnsCount: category.columnsCount,
+        rowHeight: category.rowHeight,
+        sort: category.sort,
+        type: category.type,
+        applications: UnmodifiableListView(category.applications.where((application) => application.isAvailable).toList()),
+      );
 
   AppsService(this._fLauncherChannel, this._database) {
     _init();
@@ -309,7 +299,6 @@ class AppsService extends ChangeNotifier
 
     final List<String> uninstalledApplications = [];
     for (App app in appsRemovedFromSystem) {
-      app.isAvailable = false;
       String packageName = app.packageName;
 
       // Keep rows for installed but unavailable apps so their categories and order survive.
@@ -661,7 +650,8 @@ class AppsService extends ChangeNotifier
   }
 
   Future<void> moveAppToAdjacentCategory(App app, Category currentCategory, AxisDirection direction) async {
-    int currentSectionIndex = _launcherSections.indexOf(currentCategory);
+    int currentSectionIndex =
+        _launcherSections.indexWhere((section) => section is Category && section.id == currentCategory.id);
     if (currentSectionIndex == -1) {
        return;
     }
@@ -743,8 +733,12 @@ class AppsService extends ChangeNotifier
     }
     Category categoryFound = _categoriesById[category.id]!;
     List<App> applications = categoryFound.applications;
-    App application = applications.removeAt(oldIndex);
-    applications.insert(newIndex, application);
+    // Indexes come from the UI, which only sees available apps.
+    final visibleApplications = applications.where((app) => app.isAvailable).toList();
+    final application = visibleApplications[oldIndex];
+    final realNewIndex = applications.indexOf(visibleApplications[newIndex]);
+    applications.remove(application);
+    applications.insert(realNewIndex, application);
 
     notifyListeners();
   }

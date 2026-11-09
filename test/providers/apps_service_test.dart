@@ -277,6 +277,27 @@ void main() {
     expect(appsService.categoriesWithApps[0].applications[1].packageName, "app.1");
   });
 
+  test("reorderApplication ignores unavailable apps when translating indexes", () async {
+    final channel = MockFLauncherChannel();
+    final database = MockFLauncherDatabase();
+    final category = fakeCategory(name: "Category");
+    final unavailableApp = fakeApp(packageName: "app.unavailable")..isAvailable = false;
+    final appsService = await _buildInitialisedAppsService(channel, database, [
+      CategoryWithApps(category, [unavailableApp, fakeApp(packageName: "app.1"), fakeApp(packageName: "app.2")])
+    ]);
+
+    // Indexes as seen by the UI, which doesn't include the unavailable app.
+    appsService.reorderApplication(category, 1, 0);
+
+    expect(appsService.categoriesWithApps[0].applications.map((app) => app.packageName), ["app.2", "app.1"]);
+    await appsService.saveApplicationOrderInCategory(category);
+    verify(database.replaceAppsCategories([
+      AppsCategoriesCompanion.insert(categoryId: category.id, appPackageName: "app.unavailable", order: 0),
+      AppsCategoriesCompanion.insert(categoryId: category.id, appPackageName: "app.2", order: 1),
+      AppsCategoriesCompanion.insert(categoryId: category.id, appPackageName: "app.1", order: 2),
+    ]));
+  });
+
   test("addCategory adds category at index 0 and moves others", () async {
     final channel = MockFLauncherChannel();
     final database = MockFLauncherDatabase();

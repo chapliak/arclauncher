@@ -34,6 +34,8 @@ class App
 
   DateTime? lastLaunchedAt; // For "Last Used" category sorting
 
+  bool isAvailable = true;
+
   App({
     required this.packageName,
     required this.name,

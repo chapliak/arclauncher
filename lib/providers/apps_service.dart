@@ -78,13 +78,38 @@ class AppsService extends ChangeNotifier
   final Set<String> _dirtyImagePackages = {};
   bool consumeDirtyImage(String packageName) => _dirtyImagePackages.remove(packageName);
 
-  List<App> get applications => UnmodifiableListView(_applications.values.sortedBy((application) => application.name));
+  List<App> get applications => UnmodifiableListView(
+      _applications.values.where((application) => application.isAvailable).sortedBy((application) => application.name));
 
-  App? getApplication(String? packageName) => packageName != null ? _applications[packageName] : null;
+  App? getApplication(String? packageName) {
+    final application = packageName != null ? _applications[packageName] : null;
+    return application?.isAvailable == true ? application : null;
+  }
 
-  List<LauncherSection> get launcherSections => List.unmodifiable(_launcherSections);
+  List<LauncherSection> get launcherSections => List.unmodifiable(_launcherSections.map((section) {
+        if (section is! Category) return section;
+        return Category.withApplications(
+          name: section.name,
+          id: section.id,
+          order: section.order,
+          columnsCount: section.columnsCount,
+          rowHeight: section.rowHeight,
+          sort: section.sort,
+          type: section.type,
+          applications: UnmodifiableListView(section.applications.where((application) => application.isAvailable).toList()),
+        );
+      }));
   List<Category> get categories => _categoriesById.values
-      .map((category) => category.unmodifiable())
+      .map((category) => Category.withApplications(
+            name: category.name,
+            id: category.id,
+            order: category.order,
+            columnsCount: category.columnsCount,
+            rowHeight: category.rowHeight,
+            sort: category.sort,
+            type: category.type,
+            applications: UnmodifiableListView(category.applications.where((application) => application.isAvailable).toList()),
+          ))
       .toList(growable: false);
   List<Category> get categoriesWithApps => categories;
 
@@ -284,9 +309,10 @@ class AppsService extends ChangeNotifier
 
     final List<String> uninstalledApplications = [];
     for (App app in appsRemovedFromSystem) {
+      app.isAvailable = false;
       String packageName = app.packageName;
 
-      // TODO: Is this really necessary? Can't we get this information from the getApplications method?
+      // Keep rows for installed but unavailable apps so their categories and order survive.
       bool appExists = await _fLauncherChannel.applicationExists(packageName);
       if (!appExists) {
         uninstalledApplications.add(packageName);
@@ -317,6 +343,7 @@ class AppsService extends ChangeNotifier
 
     for (App application in _applications.values) {
       Map? applicationFromSystem = appsFromSystemByPackageName[application.packageName]?.$1;
+      application.isAvailable = applicationFromSystem != null;
 
       if (applicationFromSystem != null) {
         if (applicationFromSystem.containsKey('action')) {

@@ -135,24 +135,28 @@ void main() {
     });
   });
 
-  test("package made unavailable (e.g. disabled) is removed from the launcher", () async {
+  test("disabled apps are hidden while their saved rows are preserved", () async {
     final channel = MockFLauncherChannel();
     final database = MockFLauncherDatabase();
-    late void Function(Map<String, dynamic>) listener;
-    when(channel.addAppsChangedListener(any)).thenAnswer((invocation) {
-      listener = invocation.positionalArguments[0];
-    });
-    await _buildInitialisedAppsService(channel, database, []);
+    final disabledApp = fakeApp(packageName: "disabled.app", name: "Disabled Application", version: "1.0.0");
     when(channel.getApplications()).thenAnswer((_) => Future.value([]));
-    when(channel.applicationExists("disabled.app")).thenAnswer((_) => Future.value(false));
-    when(database.getApplications()).thenAnswer((_) => Future.value([
-          fakeApp(packageName: "disabled.app", name: "Disabled Application", version: "1.0.0"),
-        ]));
+    when(channel.applicationExists("disabled.app")).thenAnswer((_) => Future.value(true));
+    when(database.getApplications()).thenAnswer((_) => Future.value([disabledApp]));
+    when(database.getCategories()).thenAnswer((_) => Future.value([]));
+    when(database.getAppsCategories()).thenAnswer((_) => Future.value([]));
+    when(database.getLauncherSpacers()).thenAnswer((_) => Future.value([]));
+    when(database.transaction(any)).thenAnswer((invocation) => invocation.positionalArguments[0]());
+    when(database.wasCreated).thenReturn(false);
 
-    listener({"action": "PACKAGE_UNAVAILABLE", "packageName": "disabled.app"});
-    await untilCalled(database.deleteApps(any));
+    final appsService = AppsService(channel, database);
+    await untilCalled(channel.addAppsChangedListener(any));
 
-    verify(database.deleteApps(["disabled.app"]));
+    expect(appsService.applications, isEmpty);
+    expect(appsService.getApplication("disabled.app"), null);
+    expect(appsService.categories.expand((category) => category.applications), isEmpty);
+    verify(database.deleteApps([]));
+    verifyNever(database.deleteApps(["disabled.app"]));
+    expect(disabledApp.isAvailable, isFalse);
   });
 
   test("launchApp calls channel", () async {

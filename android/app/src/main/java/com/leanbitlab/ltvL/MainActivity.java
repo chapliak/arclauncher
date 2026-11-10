@@ -94,6 +94,7 @@ public class MainActivity extends FlutterActivity {
                 case "applicationExists" -> result.success(applicationExists(call.arguments()));
                 case "launchActivityFromAction" -> result.success(launchActivityFromAction(call.arguments()));
                 case "launchApp" -> result.success(launchApp(call.arguments()));
+                case "launchUri" -> result.success(launchUri(call.arguments()));
                 case "openSettings" -> result.success(openSettings());
                 case "installApk" -> result.success(installApk(call.arguments()));
                 case "requestInstallUnknownAppsPermission" -> {
@@ -407,6 +408,13 @@ public class MainActivity extends FlutterActivity {
 
     private boolean launchActivityFromAction(String action) {
         return tryStartActivity(new Intent(action));
+    }
+
+    /** Fork: open a URI (e.g. cedartv://play?...) in whatever app handles it. */
+    private boolean launchUri(String uri) {
+        Intent intent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(uri));
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        return tryStartActivity(intent);
     }
 
     private boolean launchApp(String packageName) {

@@ -47,6 +47,9 @@ class FLauncherChannel {
 
   Future<void> launchActivityFromAction(String action) async => await _methodChannel.invokeMethod('launchActivityFromAction', action);
 
+  /// Fork: opens a URI (e.g. cedartv://play?...) with whatever app handles it.
+  Future<void> launchUri(String uri) async => await _methodChannel.invokeMethod('launchUri', uri);
+
   Future<void> launchApp(String packageName) async => await _methodChannel.invokeMethod('launchApp', packageName);
 
   Future<void> openSettings() async => await _methodChannel.invokeMethod('openSettings');

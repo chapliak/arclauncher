@@ -64,7 +64,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.omeda.arc"
+        applicationId "com.chapliak.arc" // fork: separate app id (upstream: com.omeda.arc)
         compileSdk 36
         minSdkVersion flutter.minSdkVersion
         targetSdk 35
@@ -75,7 +75,12 @@ android {
     signingConfigs {
         debug {}
         release {
-            if (localProperties['storeFile'] != null) {
+            if (System.getenv('ARC_STORE_FILE') != null) { // fork: key from the build script (flutter build rewrites local.properties)
+                storeFile file(System.getenv('ARC_STORE_FILE'))
+                storePassword System.getenv('ARC_STORE_PW')
+                keyAlias 'arcfork'
+                keyPassword System.getenv('ARC_STORE_PW')
+            } else if (localProperties['storeFile'] != null) {
                 storeFile file(localProperties['storeFile'])
                 storePassword localProperties['storePassword']
                 keyAlias localProperties['keyAlias']

@@ -2,6 +2,7 @@
 import 'package:flauncher/providers/settings_service.dart';
 import 'package:flauncher/widgets/rounded_switch_list_tile.dart';
 import 'package:flauncher/widgets/settings/focusable_settings_tile.dart';
+import 'package:flauncher/jw/jw_settings_page.dart';
 import 'package:flauncher/widgets/settings/watch_next_panel_page.dart';
 import 'package:flauncher/widgets/settings/settings_theme.dart';
 import 'package:flutter/material.dart';
@@ -61,6 +62,12 @@ class MiscPanelPage extends StatelessWidget {
                 leading: const Icon(Icons.play_circle_outline),
                 title: Text(localizations.watchNextSectionTitle, style: Theme.of(context).textTheme.bodyMedium),
                 onPressed: () => Navigator.of(context).pushNamed(WatchNextPanelPage.routeName),
+              ),
+              FocusableSettingsTile(
+                showChevron: true,
+                leading: const Icon(Icons.menu_book_outlined),
+                title: Text('Daily text & videos', style: Theme.of(context).textTheme.bodyMedium),
+                onPressed: () => Navigator.of(context).pushNamed(JwSettingsPage.routeName),
               ),
             ],
           ),

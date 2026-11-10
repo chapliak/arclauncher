@@ -27,7 +27,9 @@ import 'package:flauncher/providers/reddit_slideshow.dart';
 import 'package:flauncher/providers/settings_service.dart';
 import 'package:flauncher/providers/unsplash_slideshow.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class WallpaperService extends ChangeNotifier {
   final SettingsService _settingsService;
@@ -54,6 +56,37 @@ class WallpaperService extends ChangeNotifier {
   File? _redditFile;
 
   static const Duration redditConfigDebounce = Duration(seconds: 3);
+
+  // ---- fork: static, dark forest wallpaper bundled with the app (assets/forest_wallpaper.jpg) ----
+  File? _natureFile;
+  SharedPreferences? _prefs;
+
+  bool get natureEnabled => _prefs?.getBool('nature_wallpaper_enabled') ?? true;
+  bool get _natureActive => natureEnabled && !_settingsService.redditWallpaperEnabled && !_settingsService.unsplashSlideshowEnabled;
+
+  Future<void> setNatureEnabled(bool value) async {
+    await _prefs?.setBool('nature_wallpaper_enabled', value);
+    _updateNatureState();
+    _updateWallpaper(force: true);
+    notifyListeners();
+  }
+
+  /// Copies the bundled picture to a real file (the rest of the app works with files) and tells the screensaver.
+  Future<void> _updateNatureState() async {
+    if (!natureEnabled) {
+      _prefs?.remove('jw_ss_image');
+      return;
+    }
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File("${dir.path}/forest_wallpaper.jpg");
+    final data = await rootBundle.load('assets/forest_wallpaper.jpg');
+    if (!file.existsSync() || file.lengthSync() != data.lengthInBytes) {
+      await file.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes), flush: true);
+    }
+    _natureFile = file;
+    await _prefs?.setString('jw_ss_image', file.path);
+    _updateWallpaper(force: true);
+  }
 
   /// Credit to display while the Reddit wallpaper is on screen.
   String? get redditWallpaperCredit {
@@ -158,6 +191,7 @@ class WallpaperService extends ChangeNotifier {
     _slideshowFile = newestCachedImage(_slideshow.cacheDir);
     _redditSlideshow = RedditSlideshow(Directory("${directory.path}/reddit_slideshow"));
     _redditFile = newestCachedImage(_redditSlideshow.cacheDir);
+    _prefs = await SharedPreferences.getInstance();
     _initialized = true;
 
     _lastTimeBasedEnabled = _settingsService.timeBasedWallpaperEnabled;
@@ -167,6 +201,7 @@ class WallpaperService extends ChangeNotifier {
     _updateTimerState();
     _updateSlideshowState();
     _updateRedditState();
+    _updateNatureState();
   }
 
   void _updateSlideshowState() {
@@ -240,6 +275,7 @@ class WallpaperService extends ChangeNotifier {
     if (!isInitialized) return null;
     if (_settingsService.redditWallpaperEnabled) return null;
     if (_settingsService.unsplashSlideshowEnabled) return null;
+    if (_natureActive) return null;
 
     final now = DateTime.now();
     final isDay = now.hour >= 6 && now.hour < 18;
@@ -278,6 +314,8 @@ class WallpaperService extends ChangeNotifier {
       newWallpaper = FileImage(redditFile);
     } else if (_settingsService.unsplashSlideshowEnabled && slideshowFile != null && slideshowFile.existsSync()) {
       newWallpaper = FileImage(slideshowFile);
+    } else if (_natureActive && _natureFile != null && _natureFile!.existsSync()) {
+      newWallpaper = FileImage(_natureFile!);
     } else if (videoFile != null) {
       newWallpaper = null;
     } else if (enabled) {

@@ -27,6 +27,8 @@ import 'package:flauncher/custom_traversal_policy.dart';
 import 'package:flauncher/providers/apps_service.dart';
 import 'package:flauncher/providers/launcher_state.dart';
 import 'package:flauncher/providers/settings_service.dart';
+import 'package:flauncher/jw/jw_service.dart';
+import 'package:flauncher/jw/jw_widgets.dart';
 import 'package:flauncher/providers/wallpaper_service.dart';
 import 'package:flauncher/providers/watch_next_service.dart';
 import 'package:flauncher/widgets/app_card.dart';
@@ -184,6 +186,7 @@ class _FLauncherState extends State<FLauncher> with WidgetsBindingObserver {
                           ),
                         ),
                       ),
+                    if (!hasHeroBackdrop) const DailyTextOverlay(), // fork: daily text on the wallpaper
                   ],
                 );
               },
@@ -278,6 +281,8 @@ class _FLauncherState extends State<FLauncher> with WidgetsBindingObserver {
     final watchNextBigPicture = context.select<SettingsService, bool>((s) => s.watchNextBigPictureMode);
     final watchNextVisible = context.select<WatchNextService, bool>((s) => s.hasVisibleSection);
     final reserveWatchNextSpace = showWatchNextSection && watchNextVisible;
+    // fork: the "New videos" row takes the Watch Next slot when Watch Next has nothing to show.
+    final jwRowVisible = context.select<JwService, bool>((s) => s.showVideos && s.videos.isNotEmpty) && !reserveWatchNextSpace;
 
     if (favoriteApps.isEmpty && otherSections.isEmpty) return _emptyState(context);
 
@@ -293,7 +298,7 @@ class _FLauncherState extends State<FLauncher> with WidgetsBindingObserver {
                   MediaQuery.of(context).size.height -
                   MediaQuery.of(context).padding.top -
                   kToolbarHeight -
-                  (reserveWatchNextSpace ? watchNextSpace : 150),
+                  (reserveWatchNextSpace ? watchNextSpace : (jwRowVisible ? 150 + JwVideosRow.height : 150)),
             ),
           ),
           if (showWatchNextSection)
@@ -306,6 +311,10 @@ class _FLauncherState extends State<FLauncher> with WidgetsBindingObserver {
                 ),
               ),
             ),
+          if (jwRowVisible)
+            SliverToBoxAdapter(
+              child: RepaintBoundary(child: JwVideosRow(onItemFocused: _onHomeSectionFocused)),
+            ),
           if (favoriteApps.isNotEmpty)
             SliverToBoxAdapter(
               child: KeyedSubtree(
@@ -317,7 +326,7 @@ class _FLauncherState extends State<FLauncher> with WidgetsBindingObserver {
                     favoritesCategory!,
                     favoriteApps,
                     appsService,
-                    handleUpNavigationToSettings: !reserveWatchNextSpace,
+                    handleUpNavigationToSettings: !reserveWatchNextSpace && !jwRowVisible,
                   ),
                 ),
               ),

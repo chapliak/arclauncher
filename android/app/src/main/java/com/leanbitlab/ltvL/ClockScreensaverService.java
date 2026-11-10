@@ -60,10 +60,17 @@ public class ClockScreensaverService extends DreamService {
 
         // Create container
         container = new FrameLayout(this);
-        container.setBackgroundColor(Color.BLACK);
-        setContentView(container);
+        // Fork: nature picture (same as the wallpaper), dimmed, with the clock and the daily text on top.
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(Color.BLACK);
+        android.view.ViewGroup.LayoutParams match = new FrameLayout.LayoutParams(-1, -1);
+        addBackgroundPicture(root, match);
+        container.setBackgroundColor(Color.TRANSPARENT);
+        root.addView(container, match);
+        addDailyText(root);
+        setContentView(root);
 
-        handler = new Handler(Looper.getMainLooper());
+        if (handler == null) handler = new Handler(Looper.getMainLooper());
         random = new Random();
 
         // Get screen dimensions
@@ -97,6 +104,103 @@ public class ClockScreensaverService extends DreamService {
         handler.postDelayed(moveClockRunnable, 30000);
         handler.post(updateTimeRunnable);
     }
+
+    // ---- fork additions: background picture + daily text -------------------------------------
+
+    private TextView dailyLabel;
+    private TextView dailyText;
+    private Runnable dailyRunnable;
+    private boolean dailyShowUk = false;
+
+    private void addBackgroundPicture(FrameLayout root, android.view.ViewGroup.LayoutParams match) {
+        try {
+            SharedPreferences prefs = getSharedPreferences("FlutterSharedPreferences", MODE_PRIVATE);
+            String path = prefs.getString("flutter.jw_ss_image", null);
+            if (path == null || !new java.io.File(path).exists()) return;
+            android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+            o.inJustDecodeBounds = true;
+            android.graphics.BitmapFactory.decodeFile(path, o);
+            int sample = 1;
+            while (o.outWidth / (sample * 2) >= 1920) sample *= 2;
+            o = new android.graphics.BitmapFactory.Options();
+            o.inSampleSize = sample;
+            o.inPreferredConfig = android.graphics.Bitmap.Config.RGB_565; // half the memory
+            android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeFile(path, o);
+            if (bmp == null) return;
+            android.widget.ImageView iv = new android.widget.ImageView(this);
+            iv.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+            iv.setImageBitmap(bmp);
+            root.addView(iv, match);
+            android.view.View dim = new android.view.View(this);
+            dim.setBackgroundColor(0x66000000); // 40% black on top of the already dark forest picture
+            root.addView(dim, match);
+        } catch (Throwable ignored) {
+            // no picture: plain black screensaver as before
+        }
+    }
+
+    private void addDailyText(FrameLayout root) {
+        if (handler == null) handler = new Handler(Looper.getMainLooper());
+        SharedPreferences prefs = getSharedPreferences("FlutterSharedPreferences", MODE_PRIVATE);
+        boolean show;
+        try { show = prefs.getBoolean("flutter.jw_show_text", true); } catch (Exception e) { show = true; }
+        if (!show) return;
+        android.widget.LinearLayout box = new android.widget.LinearLayout(this);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        box.setGravity(Gravity.CENTER_HORIZONTAL);
+        int pad = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 24, getResources().getDisplayMetrics());
+        box.setPadding(pad * 3, 0, pad * 3, pad * 2);
+        dailyLabel = new TextView(this);
+        dailyLabel.setTextColor(0xB3FFFFFF);
+        dailyLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        dailyLabel.setLetterSpacing(0.2f);
+        dailyLabel.setGravity(Gravity.CENTER);
+        dailyText = new TextView(this);
+        dailyText.setTextColor(Color.WHITE);
+        dailyText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
+        dailyText.setTypeface(Typeface.create("serif", Typeface.NORMAL));
+        dailyText.setLineSpacing(0, 1.15f);
+        dailyText.setGravity(Gravity.CENTER);
+        dailyText.setShadowLayer(10, 0, 0, 0xCC000000);
+        box.addView(dailyLabel);
+        box.addView(dailyText);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
+        root.addView(box, lp);
+        box.setAlpha(0f);
+        final android.view.View boxView = box;
+        dailyRunnable = new Runnable() {
+            @Override public void run() {
+                boolean uk = pickDailyText();
+                boxView.animate().alpha(1f).setDuration(1200).start();
+                // Next language after 40 s: fade out, swap, fade in (also moves a little: no burn-in).
+                handler.postDelayed(() -> boxView.animate().alpha(0f).setDuration(1000).withEndAction(() -> {
+                    dailyShowUk = !dailyShowUk;
+                    run();
+                }).start(), 40000);
+            }
+        };
+        handler.postDelayed(dailyRunnable, 1500);
+    }
+
+    /** Fills the text views for the current language; returns true if Ukrainian is shown. */
+    private boolean pickDailyText() {
+        SharedPreferences prefs = getSharedPreferences("FlutterSharedPreferences", MODE_PRIVATE);
+        String lang = prefs.getString("flutter.jw_text_lang", "both");
+        String en = prefs.getString("flutter.jw_text_en", null);
+        String uk = prefs.getString("flutter.jw_text_uk", null);
+        boolean useUk;
+        if ("en".equals(lang)) useUk = false;
+        else if ("uk".equals(lang)) useUk = true;
+        else useUk = dailyShowUk;
+        String text = useUk ? uk : en;
+        if (text == null) { useUk = !useUk; text = useUk ? uk : en; }
+        if (text == null) { dailyLabel.setText(""); dailyText.setText(""); return useUk; }
+        dailyLabel.setText(useUk ? "ТЕКСТ ДНЯ" : "DAILY TEXT");
+        dailyText.setText(text);
+        return useUk;
+    }
+
+    // ---------------------------------------------------------------------------------------
 
     private void createCharacterViews() {
         // Get current time and date strings

@@ -22,5 +22,6 @@ Fix conflicts (usually the small edits listed above), build, install with `adb i
 ## Safety on the TV (Google TV Streamer, 2 GB RAM)
 - Home role: `cmd role get-role-holders android.app.role.HOME`; change only while the new launcher is already running, never disable the current one.
 - Google's `launcherx` and `tvlauncher` stay disabled (else Home goes to Google TV). Roll back: `pm enable com.google.android.apps.tv.launcherx`.
+- Google's recovery package `com.google.android.tungsten.setupwraith` is disabled (it looped and crashed Android 14's system_server when launcherx is off). Undo: `pm enable com.google.android.tungsten.setupwraith`.
 - Projectivy is disabled (`pm enable com.spocky.projengmenu` brings it back).
 - Wireless debugging switches off at every reboot.
